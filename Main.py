@@ -16,7 +16,7 @@ headers = {
 
 endpoints = {
     1: '/v1/cryptocurrency/map',
-    # 2: '/v2/cryptocurrency/info',
+    2: '/v2/cryptocurrency/info',
     # 3: '/v1/cryptocurrency/listings/latest',
     # 4: '/v1/cryptocurrency/listings/historical',
     # 5: '/v2/cryptocurrency/quotes/latest',
@@ -44,15 +44,15 @@ def convert_date(date_string):
 @app.task
 def write_to_database(data):
     for coin in data['data']:
-        Map.create(
+        Map.get_or_create(
             cap_id=coin['id'],
-            ranke=coin['rank'],
+            rank=int(coin['rank']),
             name=coin['name'],
             symbol=coin['symbol'],
             slug=coin['slug'],
             is_active=bool(coin['is_active']),
             first_date=convert_date(coin['first_historical_data']),
-            last_date=convert_date(coin['last_historical_data']),
+            last_date=convert_date.delay(coin['last_historical_data']).get(),
         )
 
 
@@ -67,7 +67,7 @@ class CoinMarketCapApi:
         except requests.exceptions.RequestException as error:
             print(f'Request Error {error}')
         else:
-            return write_to_database(response.json())
+            return write_to_database.delay(response.json())
 
 
 first_try = CoinMarketCapApi(endpoint=endpoints[1])
