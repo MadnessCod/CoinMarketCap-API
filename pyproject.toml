@@ -10,7 +10,7 @@ python = "^3.11"
 requests = "^2.32.3"
 peewee = "^3.17.6"
 psycopg2-binary = "^2.9.9"
-celery = {extras = ["beat"], version = "^5.4.0"}
+celery = {extras = ["beat", "redis"], version = "^5.4.0"}
 redis = "^5.0.7"
 flower = "^2.0.1"
 eventlet = "^0.36.1"
