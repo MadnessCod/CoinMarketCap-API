@@ -21,6 +21,7 @@ class Map(peewee.Model):
     is_active = peewee.BooleanField(default=True, null=True)
     first_date = peewee.DateField(verbose_name='Coin first date', null=True)
     last_date = peewee.DateField(verbose_name='Coin last date', null=True)
+    urls = peewee.CharField(max_length=500, verbose_name='Coin urls', null=True)
 
     class Meta:
         database = database_manager.db

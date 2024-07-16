@@ -69,6 +69,21 @@ class CoinMarketCapApi:
         else:
             return write_to_database.delay(response.json())
 
+    def metadata(self):
+        maps = Map.select()
+        query = ''
+        for counter, coin in enumerate(maps):
+            query += f'{coin.cap_id},'
+            if counter == 100:
+                response = requests.get(url=url + self.endpoint[2] + query, headers=self.headers)
+                query = ''
+
+
+
+
+
+
+
 
 first_try = CoinMarketCapApi(endpoint=endpoints[1])
 first_try.get()
