@@ -3,7 +3,7 @@ from datetime import datetime
 
 from celery import Celery
 from local_settings import API_KEY, BROKER_URL, BACKEND_URL
-from database_creation import Map
+from database_creation import Map, Coin, Platform, URLs, ContractAddress, MetaData, Tags
 
 app = Celery('CoinMarketCapTasks', broker=BROKER_URL, backend=BACKEND_URL)
 url = 'https://pro-api.coinmarketcap.com'
@@ -44,16 +44,35 @@ def convert_date(date_string):
 @app.task
 def write_to_database(data):
     for coin in data['data']:
-        Map.get_or_create(
+        coin_instance, _ = Coin.get_or_create(
             cap_id=coin['id'],
-            rank=int(coin['rank']),
             name=coin['name'],
             symbol=coin['symbol'],
             slug=coin['slug'],
-            is_active=bool(coin['is_active']),
-            first_date=convert_date(coin['first_historical_data']),
-            last_date=convert_date.delay(coin['last_historical_data']).get(),
         )
+        Map.get_or_create(
+            rank=int(coin['rank']),
+            is_active=bool(coin['is_active']),
+            first_date=convert_date.delay(coin['first_historical_data']).get(),
+            last_date=convert_date.delay(coin['last_historical_data']).get(),
+            coin=coin_instance,
+        )
+
+
+@app.task
+def metadata_database(data):
+    pass
+
+
+@app.task
+def download(download_url):
+    try:
+        response = requests.get(download_url)
+    except requests.exceptions.RequestException as e:
+        print(f'Requests Error {e}')
+    else:
+        with open('image.jpg', 'wb') as f:
+            f.write(response.content)
 
 
 class CoinMarketCapApi:
@@ -67,9 +86,9 @@ class CoinMarketCapApi:
         except requests.exceptions.RequestException as error:
             print(f'Request Error {error}')
         else:
-            return write_to_database.delay(response.json())
+            write_to_database.delay(response.json())
 
-    def metadata(self):
+    def metadata_get(self):
         maps = Map.select()
         query = ''
         for counter, coin in enumerate(maps):
@@ -77,12 +96,7 @@ class CoinMarketCapApi:
             if counter == 100:
                 response = requests.get(url=url + self.endpoint[2] + query, headers=self.headers)
                 query = ''
-
-
-
-
-
-
+                return metadata_database(response.json())
 
 
 first_try = CoinMarketCapApi(endpoint=endpoints[1])
