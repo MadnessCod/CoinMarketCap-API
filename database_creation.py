@@ -12,69 +12,65 @@ database_manager = DatabaseManager(
 )
 
 
-class Coin(peewee.Model):
-    cap_id = peewee.CharField(max_length=50, verbose_name='Coin id')
+class MyBaseModel(peewee.Model):
+    class Meta:
+        database = database_manager.db
+
+
+class Coin(MyBaseModel):
+    cap_id = peewee.CharField(unique=True, verbose_name='Coin id')
     name = peewee.CharField(max_length=100, verbose_name='Coin name')
     symbol = peewee.CharField(max_length=100, verbose_name='Coin symbol', null=True)
     slug = peewee.CharField(max_length=100, verbose_name='Coin slug', null=True)
 
-    class Meta:
-        database = database_manager.db
 
-
-class Platform(peewee.Model):
+class Platform(MyBaseModel):
     name = peewee.CharField()
     coin = peewee.ForeignKeyField(
         Coin,
         on_delete='CASCADE',
-        verbose_name='coin'
+        verbose_name='coin',
     )
 
-    class Meta:
-        database = database_manager.db
 
-
-class ContractAddress(peewee.Model):
-    contract_address = peewee.CharField(unique=True, verbose_name='Contract Address')
+class ContractAddress(MyBaseModel):
+    contract_address = peewee.CharField(verbose_name='Contract Address')
     platform = peewee.ForeignKeyField(
         Platform,
         on_delete='CASCADE',
         verbose_name='platform',
+        null=True,
     )
 
-    class Meta:
-        database = database_manager.db
 
-
-class Tags(peewee.Model):
+class Tags(MyBaseModel):
     name = peewee.CharField(max_length=100, verbose_name='Name')
     category = peewee.CharField(max_length=100, verbose_name='Category')
 
-    class Meta:
-        database = database_manager.db
 
-
-class URLs(peewee.Model):
+class URLs(MyBaseModel):
+    coin = peewee.ForeignKeyField(
+        Coin,
+        on_delete='CASCADE',
+        verbose_name='coin',
+    )
     name = peewee.CharField(max_length=100, verbose_name='Name')
     url = peewee.CharField(verbose_name='URL', null=True)
 
-    class Meta:
-        database = database_manager.db
 
-
-class MetaData(peewee.Model):
+class MetaData(MyBaseModel):
     coin = peewee.ForeignKeyField(
         Coin,
         on_delete='CASCADE',
         verbose_name='Coin',
     )
-    category = peewee.CharField(max_length=100, verbose_name='Category')
+    category = peewee.CharField(verbose_name='Category')
     description = peewee.TextField(verbose_name='Description')
     logo = peewee.BlobField(verbose_name='Logo')
-    subreddit = peewee.CharField(max_length=100, verbose_name='Subreddit')
-    notice = peewee.CharField(max_length=100, verbose_name='Notice', null=True)
-    platform = peewee.CharField(max_length=100, verbose_name='Platform', null=True)
-    twitter_username = peewee.CharField(max_length=100, verbose_name='Twitter Username', null=True)
+    subreddit = peewee.CharField(verbose_name='Subreddit')
+    notice = peewee.CharField(verbose_name='Notice', null=True)
+    platform = peewee.CharField(verbose_name='Platform', null=True)
+    twitter_username = peewee.CharField(verbose_name='Twitter Username', null=True)
     is_hidden = peewee.BooleanField(default=False, verbose_name='Hidden')
     date_launched = peewee.DateField(verbose_name='Date Launched', null=True)
     self_reported_circulating_supply = peewee.BooleanField(
@@ -86,30 +82,26 @@ class MetaData(peewee.Model):
     self_reported_market_cap = peewee.FloatField(verbose_name='Self Reported Market Cap', null=True)
     infinity_supply = peewee.BooleanField(default=False, verbose_name='Infinity Supply', null=True)
 
-    tag = peewee.ForeignKeyField(
+    tag = peewee.ManyToManyField(
         Tags,
         on_delete='CASCADE',
-        null=True,
-        verbose_name='Tags',
     )
-    urls = peewee.ForeignKeyField(
+    urls = peewee.ManyToManyField(
         URLs,
         on_delete='CASCADE',
-        null=True,
-        verbose_name='URLs',
     )
-    contract_address = peewee.ForeignKeyField(
+    contract_address = peewee.ManyToManyField(
         ContractAddress,
         on_delete='CASCADE',
-        null=True,
-        verbose_name='Contract Address',
     )
 
-    class Meta:
-        database = database_manager.db
+
+class MetadataTag(MyBaseModel):
+    data = peewee.ForeignKeyField(MetaData)
+    url = peewee.ForeignKeyField(Tags)
 
 
-class Map(peewee.Model):
+class Map(MyBaseModel):
     coin = peewee.ForeignKeyField(
         Coin,
         on_delete='CASCADE',
@@ -119,10 +111,6 @@ class Map(peewee.Model):
     is_active = peewee.BooleanField(default=True, null=True)
     first_date = peewee.DateField(verbose_name='Coin first date', null=True)
     last_date = peewee.DateField(verbose_name='Coin last date', null=True)
-
-    class Meta:
-        database = database_manager.db
-        order_by = ['rank']
 
 
 if __name__ == '__main__':
