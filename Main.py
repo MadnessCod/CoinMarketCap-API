@@ -5,7 +5,9 @@ from datetime import datetime
 
 from celery import Celery
 from local_settings import API_KEY, BROKER_URL, BACKEND_URL
-from database_creation import Map, Coin, Platform, URLs, ContractAddress, MetaData, Tags, MetadataTag, database_manager
+from database_creation import (Map, Coin, Platform, URLs,
+                               ContractAddress, MetaData, Tags,
+                               MetadataTag, MetadataUrl, MetadataContractAddress)
 
 app = Celery('CoinMarketCapTasks', broker=BROKER_URL, backend=BACKEND_URL)
 url = 'https://pro-api.coinmarketcap.com'
@@ -64,6 +66,15 @@ def write_to_database(data):
 
 
 @app.task
+def relate(metadata, others, database_name):
+    for other in others:
+        database_name.get_or_create(
+            data=metadata,
+            other=other,
+        )
+
+
+@app.task
 def metadata_database(data):
     for coin in data['data'].values():
         coin_instance = Coin.get(Coin.cap_id == coin['id'])
@@ -105,6 +116,26 @@ def metadata_database(data):
                     url=link,
                 )
                 url_instance.append(instance)
+        metadata_instance, _ = MetaData.get_or_create(
+            coin=coin_instance,
+            category=coin['category'],
+            description=coin['description'],
+            logo=coin['logo'],
+            subreddit=coin['subreddit'],
+            notice=coin['notice'],
+            platform=coin['platform'],  # this need fixing
+            twitter_username=coin['twitter_username'],
+            is_hidden=bool(coin['is_hidden']),
+            date_launched=convert_date(coin['date_launched']),
+            self_reported_circulating_supply=bool(coin['self_reported_circulating_supply']),
+            self_reported_tags=''.join(coin['self_reported_tags']) if coin['self_reported_tags'] else None,
+            self_reported_market_cap=coin['self_reported_market_cap'],
+            infinity_supply=coin['infinite_supply'],
+        )
+
+        relate.delay(metadata_instance, url_instance, MetadataUrl)
+        relate.delay(metadata_instance, tag_instances, MetadataTag)
+        relate.delay(metadata_instance, contract_addresses, MetadataContractAddress)
 
 
 @app.task
@@ -142,4 +173,4 @@ class CoinMarketCapApi:
                 with open('data1.json', 'w') as f:
                     json.dump(response.json(), f)
                 query = '?id='
-                metadata_database(response.json())
+                metadata_database.delay(response.json())

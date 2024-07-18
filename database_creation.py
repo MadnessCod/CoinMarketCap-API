@@ -82,23 +82,20 @@ class MetaData(MyBaseModel):
     self_reported_market_cap = peewee.FloatField(verbose_name='Self Reported Market Cap', null=True)
     infinity_supply = peewee.BooleanField(default=False, verbose_name='Infinity Supply', null=True)
 
-    tag = peewee.ManyToManyField(
-        Tags,
-        on_delete='CASCADE',
-    )
-    urls = peewee.ManyToManyField(
-        URLs,
-        on_delete='CASCADE',
-    )
-    contract_address = peewee.ManyToManyField(
-        ContractAddress,
-        on_delete='CASCADE',
-    )
-
 
 class MetadataTag(MyBaseModel):
     data = peewee.ForeignKeyField(MetaData)
-    url = peewee.ForeignKeyField(Tags)
+    other = peewee.ForeignKeyField(Tags)
+
+
+class MetadataUrl(MyBaseModel):
+    data = peewee.ForeignKeyField(MetaData)
+    other = peewee.ForeignKeyField(URLs)
+
+
+class MetadataContractAddress(MyBaseModel):
+    data = peewee.ForeignKeyField(MetaData)
+    other = peewee.ForeignKeyField(ContractAddress)
 
 
 class Map(MyBaseModel):
@@ -114,7 +111,9 @@ class Map(MyBaseModel):
 
 
 if __name__ == '__main__':
-    models = [Coin, Platform, ContractAddress, Tags, URLs, MetaData, Map]
+    models = [Coin, Platform, ContractAddress, Tags, URLs,
+              MetaData, Map, MetadataContractAddress, MetadataTag, MetadataUrl
+              ]
     try:
         for model in models:
             if not model.table_exists():
