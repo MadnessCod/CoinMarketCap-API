@@ -21,7 +21,7 @@ headers = {
 endpoints = {
     1: '/v1/cryptocurrency/map',
     2: '/v2/cryptocurrency/info',
-    # 3: '/v1/cryptocurrency/listings/latest',
+    3: '/v1/cryptocurrency/listings/latest',
     # 4: '/v1/cryptocurrency/listings/historical',
     # 5: '/v2/cryptocurrency/quotes/latest',
     # 6: '/v2/cryptocurrency/quotes/historical',
@@ -174,3 +174,23 @@ class CoinMarketCapApi:
                     json.dump(response.json(), f)
                 query = '?id='
                 metadata_database.delay(response.json())
+
+    def latest(self):
+        coins = Coin.select()
+        return len(coins)
+
+
+try:
+    parameters = {
+        'start': 1,
+        'limit': 5000,
+    }
+    response = requests.get(url=url + endpoints[3], headers=headers, params=parameters)
+except requests.exceptions.RequestException as error:
+    print(f'Request Error {error}')
+else:
+    with open('data5.json', 'w') as f:
+        json.dump(response.json(), f)
+
+instance = CoinMarketCapApi(endpoint=endpoints[1])
+print(instance.latest())
