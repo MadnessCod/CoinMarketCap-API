@@ -10,7 +10,7 @@ from database_creation import (Map, Coin, Platform, URLs,
                                MetadataTag, MetadataUrl, MetadataContractAddress)
 
 app = Celery('CoinMarketCapTasks', broker=BROKER_URL, backend=BACKEND_URL)
-url = 'https://pro-api.coinmarketcap.com'
+base_url = 'https://pro-api.coinmarketcap.com'
 
 headers = {
     'Accepts': 'application/json',
@@ -151,16 +151,22 @@ def download(download_url):
 
 class CoinMarketCapApi:
     def __init__(self, endpoint):
+        self.url = 'https://pro-api.coinmarketcap.com'
         self.headers = headers
         self.endpoint = endpoint
 
-    def get(self):
+    def request(self, url, parameters=None):
         try:
-            response = requests.get(url=url + self.endpoint, headers=self.headers)
+            response = requests.get(url=url, headers=self.headers, params=parameters)
         except requests.exceptions.RequestException as error:
-            print(f'Request Error {error}')
+            print(f'Requests Error {error}')
         else:
-            write_to_database.delay(response.json())
+            return response.json()
+
+    def get(self):
+        map_url = f'{self.url}{self.endpoint}'
+        response = self.request(map_url)
+        write_to_database.delay(response.json())
 
     def metadata_get(self):
         coins = Coin.select()
@@ -168,29 +174,16 @@ class CoinMarketCapApi:
         for counter, coin in enumerate(coins):
             query += f'{coin.cap_id},'
             if counter % 100 == 0 and counter != 0:
-                URL = f'{url}{self.endpoint}{query[:-1]}'
-                response = requests.get(URL, headers=self.headers)
-                with open('data1.json', 'w') as f:
-                    json.dump(response.json(), f)
+                metadata_url = f'{self.url}{self.endpoint}{query[:-1]}'
+                response = self.request(metadata_url)
                 query = '?id='
                 metadata_database.delay(response.json())
 
     def latest(self):
         coins = Coin.select()
-        return len(coins)
-
-
-try:
-    parameters = {
-        'start': 1,
-        'limit': 5000,
-    }
-    response = requests.get(url=url + endpoints[3], headers=headers, params=parameters)
-except requests.exceptions.RequestException as error:
-    print(f'Request Error {error}')
-else:
-    with open('data5.json', 'w') as f:
-        json.dump(response.json(), f)
-
-instance = CoinMarketCapApi(endpoint=endpoints[1])
-print(instance.latest())
+        parameters = {
+            'start': 1,
+            'limit': 5000,
+        }
+        latest_url = self.url + self.endpoint
+        response = self.request(latest_url, parameters)
