@@ -181,9 +181,10 @@ class CoinMarketCapApi:
 
     def latest(self):
         coins = Coin.select()
-        parameters = {
-            'start': 1,
-            'limit': 5000,
-        }
-        latest_url = self.url + self.endpoint
-        response = self.request(latest_url, parameters)
+        for number in range(1, len(coins), 5000):
+            parameters = {
+                'start': number,
+                'limit': 5000,
+            }
+            latest_url = self.url + self.endpoint
+            response = self.request(latest_url, parameters)
