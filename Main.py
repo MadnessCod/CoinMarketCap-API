@@ -1,23 +1,22 @@
+import json
 import time
+
+from datetime import datetime
 
 import peewee
 import requests
 
-from datetime import datetime
-
 from celery import Celery
 from local_settings import API_KEY, BROKER_URL, BACKEND_URL
 from database_creation import (
-    Map,
     Coin,
     Platform,
     URLs,
     ContractAddress,
-    MetaData,
     Tags,
-    MetadataTag,
-    MetadataUrl,
-    MetadataContractAddress,
+    CoinTag,
+    CoinUrl,
+    CoinContractAddress,
 )
 
 app = Celery("CoinMarketCapTasks", broker=BROKER_URL, backend=BACKEND_URL)
@@ -67,13 +66,10 @@ def write_to_database(data):
                 name=coin["name"],
                 symbol=coin["symbol"],
                 slug=coin["slug"],
-            )
-            Map.get_or_create(
                 rank=int(coin["rank"]),
                 is_active=bool(coin["is_active"]),
                 first_date=convert_date.delay(coin["first_historical_data"]).get(),
                 last_date=convert_date.delay(coin["last_historical_data"]).get(),
-                coin=coin_instance,
             )
         except KeyError as e:
             print(f"Key Error: {e}")
@@ -122,14 +118,14 @@ def metadata_database(data):
                 )
                 url_instance.append(instance)
         try:
-            metadata_instance, _ = MetaData.get_or_create(
+            metadata_instance, _ = Coin.get_or_create(
                 coin=coin_instance,
                 category=coin["category"],
                 description=coin["description"],
                 logo=coin["logo"],
                 subreddit=coin["subreddit"],
                 notice=coin["notice"],
-                platform=coin["platform"],  # this need fixing
+                platform=coin["platform"],
                 twitter_username=coin["twitter_username"],
                 is_hidden=bool(coin["is_hidden"]),
                 date_launched=convert_date(coin["date_launched"]),
@@ -148,17 +144,17 @@ def metadata_database(data):
             print(f"Error : {e}")
         else:
             for entry in url_instance:
-                MetadataUrl.get_or_create(
+                CoinUrl.get_or_create(
                     data=metadata_instance,
                     other=entry,
                 )
             for entry in tag_instances:
-                MetadataTag.get_or_create(
+                CoinTag.get_or_create(
                     data=metadata_instance,
                     other=entry,
                 )
             for entry in contract_addresses:
-                MetadataContractAddress.get_or_create(
+                CoinContractAddress.get_or_create(
                     data=metadata_instance, other=entry
                 )
 
@@ -172,10 +168,6 @@ def download(download_url):
     else:
         with open("image.jpg", "wb") as f:
             f.write(response.content)
-
-
-# @app.task
-# def latest()
 
 
 class CoinMarketCapApi:
@@ -218,4 +210,8 @@ class CoinMarketCapApi:
                 "limit": 5000,
             }
             latest_url = self.url + self.endpoint
-            response = self.request(latest_url, parameters)
+            response = self.request(latest_url, parameters=parameters)
+
+
+one = CoinMarketCapApi(endpoint=endpoints[3])
+one.latest()
