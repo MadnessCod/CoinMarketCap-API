@@ -1,4 +1,3 @@
-import json
 import time
 
 from datetime import datetime
@@ -81,16 +80,23 @@ def metadata_database(data):
         coin_instance = Coin.get(Coin.cap_id == coin["id"])
         contract_addresses = list()
         for address in coin["contract_address"]:
-            inside_coin_instance, _ = Coin.get_or_create(
-                cap_id=address["platform"]["coin"]["id"],
-                name=address["platform"]["coin"]["name"],
-                symbol=address["platform"]["coin"]["symbol"],
-                slug=address["platform"]["coin"]["slug"],
-            )
+            try:
+                inside_coin_instance = Coin.get(
+                    Coin.cap_id == int(address["platform"]["coin"]["id"])
+                )
+            except (peewee.DoesNotExist, peewee.IntegrityError):
+                inside_coin_instance = Coin.create(
+                    cap_id=int(address["platform"]["coin"]["id"]),
+                    name=address["platform"]["coin"]["name"],
+                    symbol=address["platform"]["coin"]["symbol"],
+                    slug=address["platform"]["coin"]["slug"],
+                )
+
             platform_instance, _ = Platform.get_or_create(
                 name=address["platform"]["name"],
                 coin=inside_coin_instance,
             )
+
             contract_instance, _ = ContractAddress.get_or_create(
                 contract_address=address["contract_address"],
                 platform=platform_instance,
@@ -118,8 +124,7 @@ def metadata_database(data):
                 )
                 url_instance.append(instance)
         try:
-            metadata_instance, _ = Coin.get_or_create(
-                coin=coin_instance,
+            Coin.update(
                 category=coin["category"],
                 description=coin["description"],
                 logo=coin["logo"],
@@ -139,24 +144,22 @@ def metadata_database(data):
                 ),
                 self_reported_market_cap=coin["self_reported_market_cap"],
                 infinity_supply=bool(coin["infinite_supply"]),
-            )
+            ).where(Coin.cap_id == coin["id"]).execute()
         except peewee.DataError as e:
             print(f"Error : {e}")
         else:
             for entry in url_instance:
                 CoinUrl.get_or_create(
-                    data=metadata_instance,
+                    data=coin_instance,
                     other=entry,
                 )
             for entry in tag_instances:
                 CoinTag.get_or_create(
-                    data=metadata_instance,
+                    data=coin_instance,
                     other=entry,
                 )
             for entry in contract_addresses:
-                CoinContractAddress.get_or_create(
-                    data=metadata_instance, other=entry
-                )
+                CoinContractAddress.get_or_create(data=coin_instance, other=entry)
 
 
 @app.task
@@ -211,7 +214,3 @@ class CoinMarketCapApi:
             }
             latest_url = self.url + self.endpoint
             response = self.request(latest_url, parameters=parameters)
-
-
-one = CoinMarketCapApi(endpoint=endpoints[3])
-one.latest()
