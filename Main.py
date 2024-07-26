@@ -19,6 +19,8 @@ from database_creation import (
 )
 
 app = Celery("CoinMarketCapTasks", broker=BROKER_URL, backend=BACKEND_URL)
+app.broker_connection_retry_on_startup = True
+
 base_url = "https://pro-api.coinmarketcap.com"
 
 headers = {
@@ -163,6 +165,31 @@ def metadata_database(data):
 
 
 @app.task
+def latest_database(data):
+    for coin in data["data"]:
+        try:
+            Coin.get(Coin.cap_id == coin["id"])
+        except peewee.DoesNotExist:
+            Coin.create(
+                cap_id=coin["id"],
+                name=coin["name"],
+                symbol=coin["symbol"],
+                slug=coin["slug"],
+            )
+
+        Coin.update(
+            price=coin["quote"]["UDS"]["price"],
+            volume=coin["quote"]["USD"]["volume_24h"],
+            market_cap=coin["quote"]["USD"]["market_cap"],
+            dominance=float(coin["quote"]["USD"]["market_cap_dominance"]),
+            max_supply=coin["max_supply"],
+            circulating_supply=coin["circulating_supply"],
+            total_supply=coin["total_supply"],
+            market_pairs=int(coin["num_market_pairs"]),
+        ).where(Coin.cap_id == coin["id"]).execute()
+
+
+@app.task
 def download(download_url):
     try:
         response = requests.get(download_url)
@@ -214,3 +241,4 @@ class CoinMarketCapApi:
             }
             latest_url = self.url + self.endpoint
             response = self.request(latest_url, parameters=parameters)
+            latest_database.delay(response.json())
