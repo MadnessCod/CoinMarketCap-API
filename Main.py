@@ -29,6 +29,7 @@ headers = {
     "X-CMC_PRO_API_KEY": API_KEY,
 }
 
+
 endpoints = {
     1: "/v1/cryptocurrency/map",
     2: "/v2/cryptocurrency/info",
@@ -74,6 +75,8 @@ def write_to_database(data):
             )
         except KeyError as e:
             print(f"Key Error: {e}")
+        except peewee.IntegrityError:
+            continue
 
 
 @app.task
@@ -165,20 +168,19 @@ def metadata_database(data):
 
 
 @app.task
-def latest_database(data):
-    for coin in data["data"]:
-        try:
-            Coin.get(Coin.cap_id == coin["id"])
-        except peewee.DoesNotExist:
-            Coin.create(
-                cap_id=coin["id"],
-                name=coin["name"],
-                symbol=coin["symbol"],
-                slug=coin["slug"],
-            )
-
+def latest_database(coin):
+    try:
+        Coin.get(Coin.cap_id == coin["id"])
+    except peewee.DoesNotExist:
+        Coin.create(
+            cap_id=coin["id"],
+            name=coin["name"],
+            symbol=coin["symbol"],
+            slug=coin["slug"],
+        )
+    try:
         Coin.update(
-            price=coin["quote"]["UDS"]["price"],
+            price=float(coin["quote"]["USD"]["price"]),
             volume=coin["quote"]["USD"]["volume_24h"],
             market_cap=coin["quote"]["USD"]["market_cap"],
             dominance=float(coin["quote"]["USD"]["market_cap_dominance"]),
@@ -187,6 +189,9 @@ def latest_database(data):
             total_supply=coin["total_supply"],
             market_pairs=int(coin["num_market_pairs"]),
         ).where(Coin.cap_id == coin["id"]).execute()
+
+    except KeyError as e:
+        print(f'Key Error : {e}')
 
 
 @app.task
@@ -209,10 +214,12 @@ class CoinMarketCapApi:
     def request(self, url, parameters=None):
         try:
             response = requests.get(url=url, headers=self.headers, params=parameters)
+        except requests.exceptions.HTTPError as http_error:
+            print(f'HTTP Error {http_error}')
         except requests.exceptions.RequestException as error:
             print(f"Requests Error {error}")
         else:
-            if response.status_code == 200:
+            if response.status_code == requests.codes.ok:
                 return response
 
     def get(self):
@@ -225,7 +232,7 @@ class CoinMarketCapApi:
         query = "?id="
         for counter, coin in enumerate(coins):
             query += f"{coin.cap_id},"
-            if counter % 100 == 0 and counter != 0:
+            if counter % 99 == 0 and counter != 0:
                 metadata_url = f"{self.url}{self.endpoint}{query[:-1]}"
                 time.sleep(2)
                 response = self.request(metadata_url)
@@ -241,4 +248,6 @@ class CoinMarketCapApi:
             }
             latest_url = self.url + self.endpoint
             response = self.request(latest_url, parameters=parameters)
-            latest_database.delay(response.json())
+            response = response.json()
+            for coin in response['data']:
+                latest_database.delay(coin)
