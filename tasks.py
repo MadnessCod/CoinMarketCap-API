@@ -31,20 +31,6 @@ def convert_date(date_string):
     return None
 
 
-@app.task(bind=True, max_retries=3, default_retry_delay=10)
-def request(url, parameters=None):
-    try:
-        response = requests.get(url=url, headers=headers, params=parameters)
-    except requests.exceptions.HTTPError as http_error:
-        print(f'HTTP Error {http_error}')
-    except requests.exceptions.RequestException as error:
-        print(f"Requests Error {error}")
-    else:
-        if response.status_code == requests.codes.ok:
-            if response is not None:
-                return response
-
-
 @app.task
 def write_to_database(data):
     for coin in data["data"]:
