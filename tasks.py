@@ -1,12 +1,11 @@
-import time
-
 from datetime import datetime
 
 import peewee
 import requests
 
 from celery import Celery
-from local_settings import API_KEY, BROKER_URL, BACKEND_URL
+from kombu import Queue, Exchange
+from local_settings import BROKER_URL, BACKEND_URL
 from database_creation import (
     Coin,
     Platform,
@@ -20,6 +19,16 @@ from database_creation import (
 
 app = Celery("CoinMarketCapTasks", broker=BROKER_URL, backend=BACKEND_URL)
 app.autodiscover_tasks(["tasks"])
+app.conf.update(
+    task_queues=(
+        Queue('default', Exchange('default'), routing_key='default'),
+        Queue('heavy', Exchange('heavy'), routing_key='heavy'),
+    ),
+    task_routes={
+        'tasks.metadata_database': {'queue': 'heavy'},
+        'tasks.convert_date': {'queue': 'default'},
+    },
+)
 app.broker_connection_retry_on_startup = True
 
 
@@ -45,8 +54,6 @@ def write_to_database(data):
                 first_date=convert_date.delay(coin["first_historical_data"]).get(),
                 last_date=convert_date.delay(coin["last_historical_data"]).get(),
             )
-        except KeyError as e:
-            print(f"Key Error: {e}")
         except peewee.IntegrityError:
             continue
 
@@ -117,7 +124,7 @@ def metadata_database(coin):
                 "".join(coin["self_reported_tags"])
                 if coin["self_reported_tags"]
                 else None
-            ),
+            ), # TODO: this should be Tag class relation
             self_reported_market_cap=coin["self_reported_market_cap"],
             infinity_supply=bool(coin["infinite_supply"]),
         ).where(Coin.cap_id == coin["id"]).execute()
@@ -160,7 +167,6 @@ def latest_database(coin):
             total_supply=coin["total_supply"],
             market_pairs=int(coin["num_market_pairs"]),
         ).where(Coin.cap_id == coin["id"]).execute()
-
     except KeyError as e:
         print(f'Key Error : {e}')
 

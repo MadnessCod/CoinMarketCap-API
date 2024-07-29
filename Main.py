@@ -85,4 +85,4 @@ def latest():
 
 
 if __name__ == '__main__':
-    metadata_get()
+    latest()
