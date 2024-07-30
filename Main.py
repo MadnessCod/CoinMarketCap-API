@@ -34,6 +34,12 @@ endpoints = {
 }
 
 
+def debug(*msg, separator=True):
+    print(*msg)
+    if separator:
+        print('_' * 40)
+
+
 def request(url, parameters=None):
     try:
         response = requests.get(url=url, headers=headers, params=parameters)
@@ -58,7 +64,7 @@ def metadata_get():
     query = "?id="
     for counter, coin in enumerate(coins):
         query += f"{coin.cap_id},"
-        if counter % 50 == 0 and counter != 0:
+        if counter % 100 == 0 and counter != 0:
             metadata_url = f"{base_url}{endpoints[2]}{query[:-1]}"
             response = request(metadata_url)
             time.sleep(1)
@@ -67,7 +73,6 @@ def metadata_get():
                 response = response.json()
                 for count, entry in enumerate(response['data'].values()):
                     metadata_database.delay(entry)
-                    time.sleep(2)
 
 
 def latest():
@@ -82,7 +87,3 @@ def latest():
         response = response.json()
         for coin in response['data']:
             latest_database.delay(coin)
-
-
-if __name__ == '__main__':
-    latest()

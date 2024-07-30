@@ -4,7 +4,6 @@ import peewee
 import requests
 
 from celery import Celery
-from kombu import Queue, Exchange
 from local_settings import BROKER_URL, BACKEND_URL
 from database_creation import (
     Coin,
@@ -19,17 +18,13 @@ from database_creation import (
 
 app = Celery("CoinMarketCapTasks", broker=BROKER_URL, backend=BACKEND_URL)
 app.autodiscover_tasks(["tasks"])
-app.conf.update(
-    task_queues=(
-        Queue('default', Exchange('default'), routing_key='default'),
-        Queue('heavy', Exchange('heavy'), routing_key='heavy'),
-    ),
-    task_routes={
-        'tasks.metadata_database': {'queue': 'heavy'},
-        'tasks.convert_date': {'queue': 'default'},
-    },
-)
 app.broker_connection_retry_on_startup = True
+
+
+def debug(*msg, separator=True):
+    print(*msg)
+    if separator:
+        print('_' * 40)
 
 
 @app.task
@@ -58,7 +53,7 @@ def write_to_database(data):
             continue
 
 
-@app.task(bind=True, max_retries=5, default_retry_delay=60)
+@app.task
 def metadata_database(coin):
     coin_instance = Coin.get(Coin.cap_id == coin["id"])
     contract_addresses = list()
@@ -110,7 +105,7 @@ def metadata_database(coin):
         Coin.update(
             category=coin["category"],
             description=coin["description"],
-            logo=download.delay(coin["logo"]).get(),
+            logo=coin["logo"],
             subreddit=coin["subreddit"],
             notice=coin["notice"],
             platform=coin["platform"],
@@ -124,7 +119,7 @@ def metadata_database(coin):
                 "".join(coin["self_reported_tags"])
                 if coin["self_reported_tags"]
                 else None
-            ), # TODO: this should be Tag class relation
+            ),
             self_reported_market_cap=coin["self_reported_market_cap"],
             infinity_supply=bool(coin["infinite_supply"]),
         ).where(Coin.cap_id == coin["id"]).execute()
