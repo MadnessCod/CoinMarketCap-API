@@ -35,8 +35,9 @@ def convert_date(date_string):
     return None
 
 
-@app.task(ignore_result=True)
-def write_to_database(first_date, last_date, coin):
+@app.task()
+def write_to_database(dates, coin):
+    first_date, last_date = dates
     try:
         coin_instance, _ = Coin.get_or_create(
             cap_id=coin["id"],
