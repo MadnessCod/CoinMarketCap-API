@@ -35,26 +35,25 @@ def convert_date(date_string):
     return None
 
 
-@app.task
-def write_to_database(data):
-    for coin in data["data"]:
-        try:
-            coin_instance, _ = Coin.get_or_create(
-                cap_id=coin["id"],
-                name=coin["name"],
-                symbol=coin["symbol"],
-                slug=coin["slug"],
-                rank=int(coin["rank"]),
-                is_active=bool(coin["is_active"]),
-                first_date=convert_date.delay(coin["first_historical_data"]).get(),
-                last_date=convert_date.delay(coin["last_historical_data"]).get(),
-            )
-        except peewee.IntegrityError:
-            continue
+@app.task(ignore_result=True)
+def write_to_database(first_date, last_date, coin):
+    try:
+        coin_instance, _ = Coin.get_or_create(
+            cap_id=coin["id"],
+            name=coin["name"],
+            symbol=coin["symbol"],
+            slug=coin["slug"],
+            rank=int(coin["rank"]),
+            is_active=bool(coin["is_active"]),
+            first_date=first_date,
+            last_date=last_date,
+        )
+    except peewee.IntegrityError:
+        pass
 
 
-@app.task
-def metadata_database(coin):
+@app.task(ignore_result=True)
+def metadata_database(image, coin):
     coin_instance = Coin.get(Coin.cap_id == coin["id"])
     contract_addresses = list()
     for address in coin["contract_address"]:
@@ -105,7 +104,7 @@ def metadata_database(coin):
         Coin.update(
             category=coin["category"],
             description=coin["description"],
-            logo=coin["logo"],
+            logo=image,
             subreddit=coin["subreddit"],
             notice=coin["notice"],
             platform=coin["platform"],
@@ -116,7 +115,7 @@ def metadata_database(coin):
                 coin["self_reported_circulating_supply"]
             ),
             self_reported_tags=(
-                "".join(coin["self_reported_tags"])
+                ", ".join(coin["self_reported_tags"])
                 if coin["self_reported_tags"]
                 else None
             ),
@@ -140,7 +139,7 @@ def metadata_database(coin):
             CoinContractAddress.get_or_create(data=coin_instance, other=entry)
 
 
-@app.task
+@app.task(ignore_result=True)
 def latest_database(coin):
     try:
         Coin.get(Coin.cap_id == coin["id"])

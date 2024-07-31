@@ -1,7 +1,8 @@
 import time
 import requests
 
-from tasks import metadata_database, write_to_database, latest_database
+from celery import chain
+from tasks import metadata_database, write_to_database, latest_database, download, convert_date
 from database_creation import Coin
 from local_settings import API_KEY
 
@@ -56,7 +57,14 @@ def request(url, parameters=None):
 def get():
     map_url = f"{base_url}{endpoints[1]}"
     response = request(map_url)
-    write_to_database.delay(response.json())
+    if response:
+        response = response.json()
+        for coin in response['data']:
+            chain(
+                convert_date.s(coin['first_historical_data']),
+                convert_date.s(coin['last_historical_data']),
+                write_to_database.s(coin),
+            ).apply_async()
 
 
 def metadata_get():
@@ -72,7 +80,8 @@ def metadata_get():
             if response:
                 response = response.json()
                 for count, entry in enumerate(response['data'].values()):
-                    metadata_database.delay(entry)
+                    print(entry['logo'])
+                    chain(download.s(entry['logo']), metadata_database.s(entry)).apply_async()
 
 
 def latest():
@@ -84,6 +93,7 @@ def latest():
         }
         latest_url = f'{base_url}{endpoints[2]}'
         response = request(latest_url, parameters=parameters)
-        response = response.json()
-        for coin in response['data']:
-            latest_database.delay(coin)
+        if response:
+            response = response.json()
+            for coin in response['data']:
+                latest_database.delay(coin)
