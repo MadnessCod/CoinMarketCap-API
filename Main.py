@@ -100,3 +100,7 @@ def latest():
             response = response.json()
             for coin in response['data']:
                 latest_database.delay(coin)
+
+
+if __name__ == '__main__':
+    metadata_get()
