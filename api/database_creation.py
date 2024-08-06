@@ -1,6 +1,8 @@
+from datetime import datetime
+
 import peewee
 
-from database_manager import DatabaseManager
+from api.database_manager import DatabaseManager
 from local_settings import DATABASE
 
 database_manager = DatabaseManager(
@@ -13,6 +15,8 @@ database_manager = DatabaseManager(
 
 
 class MyBaseModel(peewee.Model):
+    create_date = peewee.DateField(default=datetime.now)
+    updated_date = peewee.DateTimeField(default=datetime.now)
     class Meta:
         database = database_manager.db
 

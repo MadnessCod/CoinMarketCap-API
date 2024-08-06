@@ -3,9 +3,8 @@ from datetime import datetime
 import peewee
 import requests
 
-from celery import Celery
-from local_settings import BROKER_URL, BACKEND_URL
-from database_creation import (
+from celery import shared_task
+from api.database_creation import (
     Coin,
     Platform,
     URLs,
@@ -16,10 +15,6 @@ from database_creation import (
     CoinContractAddress,
 )
 
-app = Celery("CoinMarketCapTasks", broker=BROKER_URL, backend=BACKEND_URL)
-app.autodiscover_tasks(["tasks"])
-app.broker_connection_retry_on_startup = True
-
 
 def debug(*msg, separator=True):
     print(*msg)
@@ -27,7 +22,7 @@ def debug(*msg, separator=True):
         print('_' * 40)
 
 
-@app.task
+@shared_task
 def convert_date(date_string):
     if date_string:
         data_time_obj = datetime.fromisoformat(date_string.replace("Z", "+00:00"))
@@ -35,7 +30,7 @@ def convert_date(date_string):
     return None
 
 
-@app.task()
+@shared_task
 def write_to_database(dates, coin):
     first_date, last_date = dates
     try:
@@ -53,7 +48,7 @@ def write_to_database(dates, coin):
         pass
 
 
-@app.task(ignore_result=True)
+@shared_task(ignore_result=True)
 def metadata_database(image, coin):
     coin_instance = Coin.get(Coin.cap_id == coin["id"])
     contract_addresses = list()
@@ -140,7 +135,7 @@ def metadata_database(image, coin):
             CoinContractAddress.get_or_create(data=coin_instance, other=entry)
 
 
-@app.task(ignore_result=True)
+@shared_task(ignore_result=True)
 def latest_database(coin):
     try:
         Coin.get(Coin.cap_id == coin["id"])
@@ -166,7 +161,7 @@ def latest_database(coin):
         print(f'Key Error : {e}')
 
 
-@app.task
+@shared_task
 def download(download_url):
     try:
         response = requests.get(download_url)
